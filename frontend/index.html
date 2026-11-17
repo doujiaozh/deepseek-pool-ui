@@ -1,0 +1,260 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek Pool UI</title>
+    <!-- 引入 Markdown 渲染库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --ds-blue: #4D6BFE;
+            --bg-color: #FFFFFF;
+            --sidebar-bg: #F9F9F9;
+            --text-main: #1F2329;
+            --text-secondary: #8C92A4;
+            --user-bubble-bg: #E9EFFF;
+            --border-color: #E5E6EB;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        body { display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-main); overflow: hidden; }
+        
+        /* 侧边栏 */
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); display: flex; flex-direction: column; padding: 16px; border-right: 1px solid var(--border-color); }
+        .logo-area { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; color: var(--text-main); margin-bottom: 24px; padding-left: 8px; }
+        .logo-icon { width: 28px; height: 28px; background-color: var(--ds-blue); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+        .new-chat-btn { background-color: #FFFFFF; color: var(--ds-blue); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; transition: all 0.2s; margin-bottom: 20px; }
+        .new-chat-btn:hover { background-color: var(--user-bubble-bg); border-color: var(--ds-blue); }
+        .history-list { flex: 1; overflow-y: auto; }
+        .history-item { padding: 10px 12px; border-radius: 8px; font-size: 14px; color: var(--text-main); cursor: pointer; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item:hover { background-color: #EBEBEB; }
+        
+        /* 主聊天区 */
+        .main-chat { flex: 1; display: flex; flex-direction: column; position: relative; }
+        .top-bar { height: 56px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border-color); font-size: 16px; font-weight: 600; }
+        .top-bar span { color: var(--ds-blue); margin-left: 4px; }
+        
+        .chat-container { flex: 1; overflow-y: auto; padding: 30px 15%; display: flex; flex-direction: column; gap: 24px; scroll-behavior: smooth; }
+        
+        /* 消息样式 (复刻DeepSeek) */
+        .message { display: flex; width: 100%; }
+        .message.user { flex-direction: row-reverse; margin-bottom: 8px; }
+        .message.ai { flex-direction: row; }
+        
+        .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+        .message.user .avatar { background-color: var(--ds-blue); color: white; margin-left: 16px; }
+        .message.ai .avatar { background-color: #F2F3F5; color: var(--ds-blue); margin-right: 16px; font-weight: bold; }
+        
+        .bubble { padding: 12px 16px; font-size: 15px; line-height: 1.6; word-break: break-word; max-width: 85%; }
+        .message.user .bubble { background-color: var(--user-bubble-bg); border-radius: 12px; color: #1F2329; }
+        
+        /* AI 气泡没有背景色，直接纯文本排版 */
+        .message.ai .bubble { background-color: transparent; padding: 4px 0; }
+        
+        /* Markdown 样式适配 */
+        .bubble pre { background: #F7F7F8; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; border: 1px solid var(--border-color); }
+        .bubble code { font-family: Consolas, monospace; background: #F7F7F8; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+        .bubble p { margin-bottom: 12px; }
+        .bubble p:last-child { margin-bottom: 0; }
+
+        /* 输入区 (底部悬浮) */
+        .input-wrapper { padding: 16px 15%; background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #FFFFFF 20%); }
+        .input-box { display: flex; flex-direction: column; background-color: #FFFFFF; border: 1px solid #DEE0E3; border-radius: 16px; padding: 12px 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transition: 0.2s; }
+        .input-box:focus-within { border-color: var(--ds-blue); box-shadow: 0 4px 16px rgba(77, 107, 254, 0.15); }
+        textarea { width: 100%; border: none; background: transparent; resize: none; outline: none; font-size: 15px; max-height: 150px; min-height: 24px; color: var(--text-main); }
+        .action-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+        .send-btn { background-color: var(--ds-blue); color: white; border: none; border-radius: 8px; padding: 6px 16px; cursor: pointer; font-size: 14px; font-weight: 500; transition: 0.2s; }
+        .send-btn:hover { background-color: #3B56D4; }
+        .send-btn:disabled { background-color: #DEE0E3; color: #8C92A4; cursor: not-allowed; }
+        
+        .footer-text { text-align: center; font-size: 12px; color: var(--text-secondary); margin-top: 12px; }
+    </style>
+</head>
+<body>
+
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="logo-area">
+            <div class="logo-icon">D</div>
+            DeepSeek Pool
+        </div>
+        <button class="new-chat-btn" onclick="clearChat()">
+            <span style="font-size: 16px;">+</span> 新建对话
+        </button>
+        <div class="history-list">
+            <div class="history-item">🚀 多通道网关配置</div>
+            <div class="history-item">💡 为什么选 InternLM</div>
+        </div>
+    </div>
+
+    <!-- 聊天主体 -->
+    <div class="main-chat">
+        <div class="top-bar">
+            当前模型: <span>DeepSeek (路由至 Intern-S2)</span>
+        </div>
+        
+        <div class="chat-container" id="chat-container">
+            <!-- 欢迎语 -->
+            <div class="message ai">
+                <div class="avatar">D</div>
+                <div class="bubble">你好！我是你的专属 AI 助手，底层已接入你开发的 V2.0 极客网关。我不仅可以帮你解答问题，还能自动处理流控和通道切换。今天想聊点什么？</div>
+            </div>
+        </div>
+
+        <!-- 输入框 -->
+        <div class="input-wrapper">
+            <div class="input-box">
+                <textarea id="user-input" rows="1" placeholder="给 DeepSeek 发送消息..." onkeydown="handleKeyDown(event)"></textarea>
+                <div class="action-row">
+                    <button class="send-btn" id="send-btn" onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+            <div class="footer-text">内容由 AI 生成，请仔细甄别。你的数据仅保存在本地。</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:5000/v1/chat/completions";
+        let isGenerating = false;
+
+        const textarea = document.getElementById('user-input');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        function handleKeyDown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function clearChat() {
+            const container = document.getElementById('chat-container');
+            container.innerHTML = `
+                <div class="message ai">
+                    <div class="avatar">D</div>
+                    <div class="bubble">新建对话成功。你好，请问有什么我可以帮你的？</div>
+                </div>
+            `;
+        }
+
+        async function sendMessage() {
+            if (isGenerating) return;
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // 1. 显示用户消息
+            appendMessage('user', text);
+            input.value = '';
+            input.style.height = 'auto';
+
+            // 2. 准备 AI 消息容器
+            const aiMessageDiv = appendMessage('ai', '');
+            const bubble = aiMessageDiv.querySelector('.bubble');
+            // DeepSeek 风格的加载动画
+            bubble.innerHTML = '<span style="color:var(--ds-blue);">●</span> <span style="color:var(--ds-blue);">●</span> <span style="color:var(--ds-blue);">●</span>';
+            
+            isGenerating = true;
+            document.getElementById('send-btn').disabled = true;
+            let fullResponse = "";
+            let isFirstChunk = true;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer fake_key'
+                    },
+                    body: JSON.stringify({
+                        model: "any",
+                        messages: [{ role: "user", content: text }],
+                        stream: true
+                    })
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                const delta = data.choices[0].delta;
+                                
+                                // 重点：DeepSeek 和 InternLM 的思考过程在 reasoning_content 里
+                                // 我们把它也显示出来，用灰色斜体表示
+                                let reasoning = delta.reasoning_content || "";
+                                let content = delta.content || "";
+
+                                if (isFirstChunk && (reasoning || content)) {
+                                    bubble.innerHTML = ""; // 清除加载点
+                                    isFirstChunk = false;
+                                }
+
+                                if (reasoning) {
+                                    // 如果有思考过程，实时追加
+                                    bubble.innerHTML += `<span style="color:#8C92A4;font-style:italic;">${reasoning}</span>`;
+                                }
+                                
+                                if (content) {
+                                    fullResponse += content;
+                                    // 为了在流式输出时也能看到思考过程，这里稍微变通一下
+                                    bubble.innerHTML = marked.parse(fullResponse);
+                                }
+                                
+                                scrollToBottom();
+                            } catch (e) {}
+                        }
+                    }
+                }
+            } catch (error) {
+                bubble.innerHTML = `<span style="color: red;">网络请求失败：${error.message}</span>`;
+            } finally {
+                isGenerating = false;
+                document.getElementById('send-btn').disabled = false;
+                scrollToBottom();
+            }
+        }
+
+        function appendMessage(role, text) {
+            const container = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            
+            if (role === 'user') {
+                div.innerHTML = `
+                    <div class="avatar">U</div>
+                    <div class="bubble">${text.replace(/\n/g, '<br>')}</div>
+                `;
+            } else {
+                div.innerHTML = `
+                    <div class="avatar">D</div>
+                    <div class="bubble">${text}</div>
+                `;
+            }
+            
+            container.appendChild(div);
+            scrollToBottom();
+            return div;
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('chat-container');
+            container.scrollTop = container.scrollHeight;
+        }
+    </script>
+</body>
+</html>
