@@ -1,16 +1,27 @@
 ﻿import os
 import time
 import requests
-from flask import Flask, request, Response, stream_with_context
+from flask import Flask, request, Response, stream_with_context, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 import urllib3
 
 urllib3.disable_warnings()
-load_dotenv('backend/.env')
 
-app = Flask(__name__)
+# 1. 获取绝对路径
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_DIR = os.path.join(BASE_DIR, 'frontend')
+
+# 2. 加载 .env 环境变量
+load_dotenv(os.path.join(BASE_DIR, 'backend', '.env'))
+
+# 3. 配置 Flask，直接托管 frontend 文件夹！
+app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
+
+@app.route('/')
+def index():
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 UPSTREAMS = [
     {
@@ -64,5 +75,5 @@ def proxy_chat():
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 if __name__ == '__main__':
-    print('[INFO] V4.0 Gateway Started!')
+    print('[INFO] V5.0 Gateway Started!')
     app.run(host='0.0.0.0', port=5000)
