@@ -55,8 +55,8 @@ try:
                     content = chunk["choices"][0]["delta"].get("content", "")
                     if content:
                         print(content, end="", flush=True)
-                except Exception:
-                    pass
+                except Exception as e:
+        print(f"Error: {e}")
 
     print("\n" + "-" * 40)
     print("✅ 调用完成！")
